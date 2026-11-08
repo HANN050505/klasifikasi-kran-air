@@ -178,5 +178,6 @@ proyek_hemat_air/
 - **Dosen Pengampu**: Pak Mul
 - **Topik**: Klasifikasi Audio / Akustik Aliran Air Tempat Wudhu Masjid
 - **Anggota Kelompok**:
-  1. Raihan Aryanova
-  *(Silakan lengkapi nama & NIM anggota kelompok lainnya)*
+1. Raihan Aryanova Narendra - 240411100094
+2. Muhammad Farhan - 240411100233
+3. Joni Kumar Meghwar - 240411100234
