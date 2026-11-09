@@ -1,6 +1,6 @@
 # Proyek Sains Data: Klasifikasi & Deteksi Aliran Air Tempat Wudhu Masjid
 
-Sistem cerdas berbasis Machine Learning (*Ensemble ExtraTrees + Tuned Random Forest*) untuk mendeteksi dan mengklasifikasikan aliran air kran di tempat wudhu masjid secara akustik real-time, guna mencegah pemborosan air dan mendukung konservasi air masjid.
+Sistem cerdas berbasis Machine Learning (*Ensemble ExtraTrees + Tuned Random Forest*) dengan antarmuka interaktif **Streamlit** untuk mendeteksi dan mengklasifikasikan aliran air kran di tempat wudhu masjid secara akustik real-time, guna mencegah pemborosan air dan mendukung konservasi air masjid.
 
 Proyek ini telah dikontainerisasi menggunakan **Docker** dan siap di-deploy langsung pada **Server Lab Proxmox** hanya dengan satu perintah.
 
@@ -10,9 +10,9 @@ Proyek ini telah dikontainerisasi menggunakan **Docker** dan siap di-deploy lang
 
 | Label | Kelas | Karakteristik Akustik | Tindakan Sistem |
 |:---:|---|---|---|
-| **0** | **Bukan Air** | Suara kipas angin, obrolan, ketikan keyboard, kumandang adzan, kebisingan lingkungan | Tidak memicu alarm sistem |
+| **0** | **Bukan Air** | Suara kipas angin, obrolan, ketikan keyboard, kumandang adzan, kebisingan lingkungan | Tidak memicu alarm sistem (kran tertutup) |
 | **1** | **Kran Pelan (Hemat)** | Aliran air wajar, laminar, hemat air wudhu | Peringatan jika mengalir terus-menerus **> 20 detik** (indikasi lupa mematikan kran) |
-| **2** | **Kran Keras (Boros)** | Aliran air bertekanan tinggi, turbulen, cipratan deras | Peringatan jika mengalir terus-menerus **> 10 detik** (indikasi pemborosan air) |
+| **2** | **Kran Keras (Boros)** | Aliran air bertekanan tinggi, turbulen, cipratan deras | Peringatan jika mengalir terus-menerus **> 10 detik** (indikasi pemborosan air wudhu) |
 
 ---
 
@@ -36,75 +36,34 @@ docker compose up --build
 
 Setelah proses build selesai, buka browser dan akses aplikasi melalui:
 ```text
-http://localhost:5000
+http://localhost:8501
 ```
 atau jika diakses melalui IP Server Lab:
 ```text
-http://<IP-SERVER-LAB>:5000
+http://<IP-SERVER-LAB>:8501
 ```
 
-Port yang dibuka: **5000** (hanya 1 port).
+Port yang dibuka: **8501** (hanya 1 port).
 
 ---
 
-## Fitur Aplikasi Web & REST API
+## Fitur Aplikasi Antarmuka Streamlit
 
-### 1. Web Interface Interaktif
+### 1. Tab Deteksi & Klasifikasi Suara
 - **Upload File Audio**: Mendukung format `.wav`, `.mp3`, `.m4a`, `.ogg`, dan `.flac`.
-- **Rekam Suara Langsung**: Merekam langsung melalui mikrofon browser client (durasi 5 detik).
-- **Tombol Sampel Bawaan**: Uji coba instan dengan satu klik menggunakan sampel *Kran Keras*, *Kran Pelan*, dan *Bukan Air* yang telah disediakan.
-- **Visualisasi Hasil**: Menampilkan probabilitas softmax tiap kelas, badge status peringatan, player audio, dan metrik akustik (RMS, frekuensi spektral centroid, ZCR).
+- **Rekam Mikrofon Langsung**: Menggunakan widget perekam suara langsung dari mikrofon peramban client.
+- **Tombol Sampel Bawaan (Quick Demo)**: Uji coba instan dengan satu klik menggunakan sampel *Kran Keras*, *Kran Pelan*, dan *Bukan Air* yang telah disediakan.
+- **Peringatan Konservasi Air**: Banner rekomendasi tindakan otomatis (peringatan debit kran deras vs kran ramah lingkungan).
+- **Distribusi Probabilitas Softmax**: Visualisasi confidence level ketiga kelas.
+- **Deteksi Per Detik (Timeline Graph)**: Grafik prediksi dinamis per interval 2 detik sepanjang durasi audio.
 
-### 2. REST API Endpoints
-Aplikasi juga menyediakan API endpoint untuk integrasi sistem lain:
+### 2. Tab Visualisasi Akustik & Spektrogram
+- **Waveform Plot**: Visualisasi sinyal amplitudo audio terhadap waktu.
+- **Mel-Spectrogram**: Pola persebaran energi frekuensi audio (0–8000 Hz) menggunakan color map visual.
+- **Metrik Akustik**: RMS Energy, Spectral Centroid (Hz), dan Zero Crossing Rate.
 
-#### A. Health Check
-```bash
-curl http://localhost:5000/api/health
-```
-**Response JSON:**
-```json
-{
-  "status": "healthy",
-  "model_loaded": true,
-  "num_features": 81,
-  "classes": [
-    "Bukan Air (Kipas/Adzan/Suasana)",
-    "Kran Pelan (Hemat)",
-    "Kran Keras (Boros)"
-  ]
-}
-```
-
-#### B. Prediksi Audio File
-```bash
-curl -X POST -F "audio=@samples/sample_kran_keras.mp3" http://localhost:5000/api/predict
-```
-**Response JSON:**
-```json
-{
-  "status": "success",
-  "filename": "sample_kran_keras.mp3",
-  "predicted_class_idx": 2,
-  "predicted_class_name": "Kran Keras (Boros)",
-  "probabilities_pct": {
-    "bukan_air": 0.04,
-    "pelan": 0.26,
-    "keras": 99.69
-  },
-  "info": {
-    "label": "Kran Keras (Boros)",
-    "alert": "Peringatan: Aliran Air Terlalu Deras!",
-    "rekomendasi": "Boros air! Segera kecilkan debit kran untuk menghemat air wudhu."
-  },
-  "audio_meta": {
-    "duration_sec": 10.79,
-    "rms_volume": 0.0912,
-    "spectral_centroid_hz": 4272.1,
-    "zcr": 0.3095
-  }
-}
-```
+### 3. Tab Info Model & Metodologi
+- Dokumentasi 81 ekstraksi fitur akustik dan arsitektur model Ensemble.
 
 ---
 
@@ -116,11 +75,11 @@ Jika ingin menjalankan aplikasi langsung di environment Python lokal:
    ```powershell
    pip install -r requirements.txt
    ```
-2. **Jalankan Web App**:
+2. **Jalankan Aplikasi Streamlit**:
    ```powershell
-   python app.py
+   streamlit run app.py
    ```
-   Buka `http://127.0.0.1:5000` di browser.
+   Aplikasi akan otomatis terbuka di browser pada `http://localhost:8501`.
 
 3. **Menjalankan Monitoring Mikrofon Laptop Real-Time (dengan Voice Warning)**:
    ```powershell
@@ -149,10 +108,11 @@ Jika ingin menjalankan aplikasi langsung di environment Python lokal:
 
 ```text
 proyek_hemat_air/
-├── Dockerfile                  <-- Instruksi build image container Docker
-├── docker-compose.yml          <-- Konfigurasi docker compose untuk Proxmox
+├── Dockerfile                  <-- Instruksi build image container Docker (Streamlit)
+├── docker-compose.yml          <-- Konfigurasi docker compose untuk Proxmox (Port 8501)
 ├── requirements.txt            <-- Daftar dependensi Python
-├── app.py                      <-- Web Application & REST API (Flask + Gunicorn)
+├── app.py                      <-- Aplikasi Antarmuka Utama (Streamlit)
+├── flask_app.py                <-- Alternatif REST API & Web Dashboard (Flask)
 ├── samples/                    <-- File sampel audio bawaan untuk pengujian cepat
 │   ├── sample_kran_keras.mp3
 │   ├── sample_kran_pelan.mp3
