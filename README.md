@@ -2,7 +2,7 @@
 
 Sistem cerdas berbasis Machine Learning (*Ensemble ExtraTrees + Tuned Random Forest*) dengan antarmuka interaktif **Streamlit** untuk mendeteksi dan mengklasifikasikan aliran air kran di tempat wudhu masjid secara akustik real-time, guna mencegah pemborosan air dan mendukung konservasi air masjid.
 
-Proyek ini telah dikontainerisasi menggunakan **Docker** dan siap di-deploy langsung pada **Server Lab Proxmox** hanya dengan satu perintah.
+Proyek ini telah dikontainerisasi menggunakan **Docker** dan siap dideploy langsung pada **Server Lab Proxmox** hanya dengan satu perintah.
 
 ---
 
