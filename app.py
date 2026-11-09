@@ -283,6 +283,15 @@ with st.sidebar:
     """)
 
     st.divider()
+
+    st.subheader("👥 Anggota Kelompok (PSD)")
+    st.markdown("""
+    1. **Raihan Aryanova Narendra** (240411100094)
+    2. **Muhammad Farhan** (240411100233)
+    3. **Joni Kumar Meghwar** (240411100234)
+    """)
+
+    st.divider()
     st.caption("Deploy: Docker Container @ Proxmox Lab Server | Port 8501")
 
 # ==========================================
