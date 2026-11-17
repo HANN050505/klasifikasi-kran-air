@@ -9,9 +9,11 @@ env/
 venv/
 ENV/
 
-# IDE
+# IDE & Notebooks
 .idea/
 .vscode/
+.ipynb_checkpoints/
+*_backup*.ipynb
 
 # File augmentasi audio turunan (hemat bandwidth git, dapat dibuat ulang via augment_dataset.py)
 dataset/*/*_aug*.wav

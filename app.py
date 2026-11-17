@@ -1,17 +1,21 @@
 """
 app.py
 ======
-Aplikasi Streamlit - Sistem Cerdas Klasifikasi & Deteksi Aliran Air Tempat Wudhu Masjid
-Berbasis Machine Learning (Ensemble ExtraTrees + Tuned Random Forest).
+Aplikasi Antarmuka Interaktif Streamlit:
+Sistem Cerdas Klasifikasi & Deteksi Aliran Air Tempat Wudhu Masjid
+Berbasis Machine Learning (Soft-Voting Ensemble ExtraTrees + Tuned Random Forest).
 
 Dapat dijalankan langsung dengan:
     streamlit run app.py
+atau:
+    python app.py
 atau melalui Docker:
     docker compose up --build
 """
 
 import os
 import io
+import sys
 import tempfile
 import warnings
 import joblib
@@ -21,8 +25,21 @@ import librosa
 import librosa.display
 import matplotlib.pyplot as plt
 import streamlit as st
+from streamlit import runtime
 
 warnings.filterwarnings('ignore')
+
+# Jika script dieksekusi langsung dengan 'python app.py', otomatis jalankan Streamlit runner
+if __name__ == '__main__' and not runtime.exists():
+    import subprocess
+    print("[*] Terdeteksi dijalankan via 'python app.py'.")
+    print("[*] Membuka aplikasi menggunakan Streamlit runner di http://localhost:8501 ...")
+    cmd = [sys.executable, "-m", "streamlit", "run", os.path.abspath(__file__)] + sys.argv[1:]
+    try:
+        subprocess.run(cmd)
+    except KeyboardInterrupt:
+        pass
+    sys.exit(0)
 
 # ==========================================
 # KONFIGURASI HALAMAN STREAMLIT
@@ -34,9 +51,10 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom Styling (CSS)
+# Custom Styling (CSS) Modern & Responsif
 st.markdown("""
 <style>
+    /* Styling Header Utama */
     .main-header {
         background: linear-gradient(135deg, #0284c7 0%, #0369a1 50%, #075985 100%);
         padding: 24px 28px;
@@ -49,17 +67,17 @@ st.markdown("""
         font-size: 1.85rem;
         font-weight: 700;
         margin-bottom: 6px;
-        color: #ffffff;
+        color: #ffffff !important;
     }
     .main-header p {
         font-size: 0.98rem;
         margin-bottom: 0px;
-        color: #e0f2fe;
+        color: #e0f2fe !important;
     }
     .badge-psd {
         background-color: #38bdf8;
         color: #0c4a6e;
-        padding: 4px 10px;
+        padding: 4px 12px;
         border-radius: 6px;
         font-size: 0.78rem;
         font-weight: 700;
@@ -67,12 +85,15 @@ st.markdown("""
         display: inline-block;
         margin-bottom: 8px;
     }
+
+    /* Kartu Peringatan Hasil Deteksi */
     .alert-card {
-        padding: 20px;
+        padding: 20px 24px;
         border-radius: 12px;
         margin-top: 15px;
         margin-bottom: 20px;
         font-weight: 500;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
     }
     .alert-keras {
         background-color: #fef2f2;
@@ -89,21 +110,32 @@ st.markdown("""
         border: 2px solid #94a3b8;
         color: #334155;
     }
-    .metric-box {
+
+    /* Kartu Informasi & Simulator */
+    .info-card {
         background: #f8fafc;
         border: 1px solid #e2e8f0;
-        border-radius: 10px;
-        padding: 14px;
-        text-align: center;
+        border-radius: 12px;
+        padding: 18px 22px;
+        margin-bottom: 16px;
     }
-    .metric-value {
-        font-size: 1.5rem;
-        font-weight: 700;
-        color: #0284c7;
-    }
-    .metric-label {
+    .stat-pill {
+        display: inline-block;
+        padding: 4px 10px;
+        border-radius: 6px;
         font-size: 0.82rem;
-        color: #64748b;
+        font-weight: 600;
+        margin-right: 6px;
+    }
+    .pill-green { background: #dcfce7; color: #15803d; }
+    .pill-blue { background: #e0f2fe; color: #0369a1; }
+    .pill-red { background: #fee2e2; color: #b91c1c; }
+    .pill-slate { background: #f1f5f9; color: #475569; }
+
+    /* Custom Metric Styling */
+    div[data-testid="stMetricValue"] {
+        font-size: 1.6rem !important;
+        font-weight: 700 !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -136,7 +168,7 @@ def load_ml_model():
         return None, None, CLASS_NAMES
 
 def extract_segment_features(seg, sr=22050):
-    """Ekstraksi 81 fitur akustik per segmen audio (2 detik)."""
+    """Ekstraksi 81 fitur akustik per segmen jendela 2 detik."""
     rms_frames = librosa.feature.rms(y=seg)
     rms_val = float(np.mean(rms_frames))
     spec_cent = float(np.mean(librosa.feature.spectral_centroid(y=seg, sr=sr)))
@@ -249,9 +281,7 @@ def analyze_audio(y, sr, model, feature_cols):
         }
     }
 
-# ==========================================
-# INISIALISASI
-# ==========================================
+# Inisialisasi model
 model, feature_cols, class_names = load_ml_model()
 
 # ==========================================
@@ -261,30 +291,37 @@ with st.sidebar:
     st.image("https://cdn-icons-png.flaticon.com/512/3105/3105807.png", width=64)
     st.title("Proyek Sains Data")
     st.markdown("**Konservasi Air Wudhu Masjid**")
-    st.caption("Deteksi Aliran Air Berbasis Machine Learning")
+    st.caption("Monitoring Akustik & Deteksi Keborosan Aliran Air")
     
     st.divider()
     
-    st.subheader("📌 Status Sistem")
-    if model is not None:
-        st.success(f"Model: Ensemble Siap ({len(feature_cols)} Fitur)")
-        st.metric(label="Akurasi Model (Test)", value="97.31%")
-        st.metric(label="5-Fold CV Score", value="97.54%")
-    else:
-        st.error("Model .pkl belum ditemukan di folder output/.")
+    st.subheader("🎯 Capaian Akurasi Model")
+    st.markdown("""
+    <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; padding:12px; margin-bottom:10px;">
+        <div style="font-size:0.8rem; color:#166534; font-weight:700;">PROGRES TARGET AKURASI:</div>
+        <div style="font-size:1.1rem; font-weight:700; color:#15803d;">77.78% ➔ 97.56% 🚀</div>
+        <div style="font-size:0.75rem; color:#166534; margin-top:4px;">Target 85%–95% berhasil dilampaui via ekspansi dataset & model ensemble.</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    c_sb1, c_sb2 = st.columns(2)
+    with c_sb1:
+        st.metric("Test Accuracy", "97.31%")
+    with c_sb2:
+        st.metric("5-Fold CV", "97.56%")
 
     st.divider()
 
     st.subheader("🏷️ Kategori Kelas")
     st.markdown("""
-    - ⚪ **Bukan Air**: Kebisingan lingkungan, kipas, adzan, obrolan.
-    - 🟢 **Kran Pelan (Hemat)**: Aliran wajar, hemat & ramah lingkungan.
-    - 🔴 **Kran Keras (Boros)**: Aliran deras/bertekanan tinggi (boros air).
-    """)
+    - <span class="stat-pill pill-slate">⚪ 0: Bukan Air</span><br><small>Kebisingan masjid, adzan, kipas angin, obrolan.</small>
+    - <span class="stat-pill pill-green">🟢 1: Kran Pelan</span><br><small>Aliran laminar, hemat air & sesuai sunnah wudhu.</small>
+    - <span class="stat-pill pill-red">🔴 2: Kran Keras</span><br><small>Aliran deras turbulen bertekanan tinggi (boros air).</small>
+    """, unsafe_allow_html=True)
 
     st.divider()
 
-    st.subheader("👥 Anggota Kelompok (PSD)")
+    st.subheader("👥 Tim Pengembang (PSD)")
     st.markdown("""
     1. **Raihan Aryanova Narendra** (240411100094)
     2. **Muhammad Farhan** (240411100233)
@@ -295,33 +332,30 @@ with st.sidebar:
     st.caption("Deploy: Docker Container @ Proxmox Lab Server | Port 8501")
 
 # ==========================================
-# HEADER
+# HEADER UTAMA
 # ==========================================
 st.markdown("""
 <div class="main-header">
     <div class="badge-psd">TUGAS BESAR PROYEK SAINS DATA (PSD)</div>
     <h1>🚰 Sistem Cerdas Klasifikasi Aliran Air Tempat Wudhu Masjid</h1>
-    <p>Monitoring Akustik & Deteksi Keborosan Air Wudhu Secara Real-Time Berbasis Machine Learning</p>
+    <p>Monitoring Akustik Real-Time & Rekomendasi Konservasi Air Masjid Berbasis Ensemble Machine Learning</p>
 </div>
 """, unsafe_allow_html=True)
 
-# Cek model tersedia
 if model is None:
     st.error("File model `output/model_aliran_air.pkl` tidak ditemukan. Pastikan file model sudah ada di folder `output/`.")
     st.stop()
 
 # ==========================================
-# TABS UTAMA
+# TABS UTAMA APLIKASI
 # ==========================================
 tab_detect, tab_visualize, tab_model_info = st.tabs([
     "🎙️ Deteksi & Klasifikasi Suara",
     "📊 Visualisasi Akustik & Spektrogram",
-    "ℹ️ Info Model & Arsitektur"
+    "ℹ️ Info Model & Analisis Akurasi (77% ➔ 97.5%)"
 ])
 
-# State penampung audio yang dipilih
-if "audio_source" not in st.session_state:
-    st.session_state.audio_source = None
+# State penampung audio
 if "audio_bytes" not in st.session_state:
     st.session_state.audio_bytes = None
 if "audio_name" not in st.session_state:
@@ -331,22 +365,19 @@ if "audio_name" not in st.session_state:
 # TAB 1: DETEKSI & KLASIFIKASI
 # ==========================================
 with tab_detect:
-    st.subheader("1. Pilih atau Rekam Suara Aliran Air")
+    st.markdown("### 1. Masukkan atau Rekam Suara Aliran Air")
     
     input_method = st.radio(
         "Pilih Sumber Audio:",
-        ["📁 Upload File Audio", "🎙️ Rekam via Mikrofon Langsung", "⚡ Gunakan Sampel Cepat (Demo)"],
+        ["📁 Upload File Audio", "🎙️ Rekam via Mikrofon Langsung", "⚡ Gunakan Sampel Cepat (Demo Preset)"],
         horizontal=True
     )
 
     audio_bytes_to_play = None
-    audio_path_to_load = None
-    y_audio = None
-    sr_audio = 22050
 
     if input_method == "📁 Upload File Audio":
         uploaded_file = st.file_uploader(
-            "Unggah rekaman suara kran (Format: WAV, MP3, M4A, OGG, FLAC):",
+            "Unggah rekaman audio (WAV, MP3, M4A, OGG, FLAC):",
             type=["wav", "mp3", "m4a", "ogg", "flac"]
         )
         if uploaded_file is not None:
@@ -355,8 +386,7 @@ with tab_detect:
             st.session_state.audio_name = uploaded_file.name
 
     elif input_method == "🎙️ Rekam via Mikrofon Langsung":
-        st.write("Klik tombol rekam di bawah ini untuk mengambil suara langsung dari mikrofon perangkat Anda:")
-        # Streamlit native audio input widget (Streamlit 1.37+)
+        st.write("Klik ikon mikrofon di bawah untuk merekam suara secara langsung dari perangkat Anda:")
         if hasattr(st, "audio_input"):
             recorded_audio = st.audio_input("Rekam Suara Mikrofon")
             if recorded_audio is not None:
@@ -364,20 +394,20 @@ with tab_detect:
                 st.session_state.audio_bytes = audio_bytes_to_play
                 st.session_state.audio_name = "Rekaman_Mikrofon_Langsung.wav"
         else:
-            st.warning("Versi Streamlit ini belum mendukung widget audio_input native. Gunakan opsi Upload File Audio.")
+            st.warning("Fitur audio_input belum tersedia pada versi Streamlit ini. Silakan gunakan opsi Upload File Audio.")
 
-    elif input_method == "⚡ Gunakan Sampel Cepat (Demo)":
-        st.write("Uji coba instan menggunakan sampel suara kran wudhu yang telah disiapkan:")
+    elif input_method == "⚡ Gunakan Sampel Cepat (Demo Preset)":
+        st.write("Uji coba instan dengan satu klik menggunakan sampel audio yang telah disediakan:")
         c1, c2, c3 = st.columns(3)
         sample_choice = None
         with c1:
-            if st.button("🔴 Uji Sampel Kran Keras (Boros)", use_container_width=True):
+            if st.button("🔴 Uji Sampel: Kran Keras (Boros)", use_container_width=True):
                 sample_choice = "sample_kran_keras.mp3"
         with c2:
-            if st.button("🟢 Uji Sampel Kran Pelan (Hemat)", use_container_width=True):
+            if st.button("🟢 Uji Sampel: Kran Pelan (Hemat)", use_container_width=True):
                 sample_choice = "sample_kran_pelan.mp3"
         with c3:
-            if st.button("⚪ Uji Sampel Bukan Air (Noise)", use_container_width=True):
+            if st.button("⚪ Uji Sampel: Bukan Air (Noise)", use_container_width=True):
                 sample_choice = "sample_bukan_air.wav"
 
         if sample_choice:
@@ -388,34 +418,37 @@ with tab_detect:
                 st.session_state.audio_bytes = audio_bytes_to_play
                 st.session_state.audio_name = sample_choice
             else:
-                st.error(f"File sampel {sample_choice} tidak ditemukan di folder samples/.")
+                st.error(f"File sampel `{sample_choice}` tidak ditemukan di folder `samples/`.")
 
-    # Menampilkan Player Audio jika ada data audio aktif
+    # Tampilkan Player Audio jika ada data audio aktif
     if st.session_state.audio_bytes is not None:
-        st.divider()
-        st.write(f"🎧 **Audio Terpilih:** `{st.session_state.audio_name}`")
-        st.audio(st.session_state.audio_bytes)
-
-        btn_analyze = st.button("🚀 Jalankan Analisis & Klasifikasi Model", type="primary", use_container_width=True)
+        st.markdown("---")
+        col_ply1, col_ply2 = st.columns([2, 1])
+        with col_ply1:
+            st.write(f"🎧 **Audio Terpilih:** `{st.session_state.audio_name}`")
+            st.audio(st.session_state.audio_bytes)
+        with col_ply2:
+            st.write("⚡ **Tindakan:**")
+            btn_analyze = st.button("🚀 Jalankan Analisis & Klasifikasi", type="primary", use_container_width=True)
 
         if btn_analyze or "last_result" in st.session_state:
-            # Muat audio menggunakan Librosa
-            with st.spinner("Memproses sinyal audio dan mengekstrak 81 fitur akustik..."):
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
-                    tmp.write(st.session_state.audio_bytes)
-                    tmp_path = tmp.name
+            if btn_analyze:
+                with st.spinner("Memproses sinyal audio dan mengekstrak 81 fitur akustik..."):
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
+                        tmp.write(st.session_state.audio_bytes)
+                        tmp_path = tmp.name
 
-                try:
-                    y_audio, sr_audio = librosa.load(tmp_path, sr=22050)
-                    result = analyze_audio(y_audio, sr_audio, model, feature_cols)
-                    st.session_state.last_result = result
-                    st.session_state.y_audio = y_audio
-                    st.session_state.sr_audio = sr_audio
-                except Exception as e:
-                    st.error(f"Gagal memproses audio: {e}")
-                finally:
-                    if os.path.exists(tmp_path):
-                        os.remove(tmp_path)
+                    try:
+                        y_audio, sr_audio = librosa.load(tmp_path, sr=22050)
+                        result = analyze_audio(y_audio, sr_audio, model, feature_cols)
+                        st.session_state.last_result = result
+                        st.session_state.y_audio = y_audio
+                        st.session_state.sr_audio = sr_audio
+                    except Exception as e:
+                        st.error(f"Gagal memproses audio: {e}")
+                    finally:
+                        if os.path.exists(tmp_path):
+                            os.remove(tmp_path)
 
             if "last_result" in st.session_state:
                 res = st.session_state.last_result
@@ -423,48 +456,56 @@ with tab_detect:
                 pred_name = class_names[pred_idx]
                 prob_pct = res["avg_prob"] * 100.0
 
-                st.divider()
-                st.subheader("2. Hasil Klasifikasi & Rekomendasi")
+                st.markdown("---")
+                st.markdown("### 2. Hasil Klasifikasi & Rekomendasi Konservasi Air")
 
-                # Banner Hasil
+                # Banner Hasil Dinamis
                 if pred_idx == 2:  # Kran Keras (Boros)
                     st.markdown("""
                     <div class="alert-card alert-keras">
-                        <h3 style="margin-top:0; color:#991b1b;">⚠️ PERINGATAN: ALIRAN AIR TERLALU DERAS (BOROS)!</h3>
-                        <p style="font-size:1.1rem; margin-bottom:8px;">Terdeteksi aliran air bertekanan tinggi dengan cipratan deras. Berpotensi membuang puluhan liter air wudhu sia-sia.</p>
-                        <b>Tindakan Sistem:</b> Segera putar kran ke debit lebih kecil untuk konservasi air masjid!
+                        <h3 style="margin-top:0; color:#991b1b;">⚠️ PERINGATAN: ALIRAN AIR TERLALU DERAS (INDIKASI BOROS)!</h3>
+                        <p style="font-size:1.05rem; margin-bottom:8px;">
+                            Terdeteksi aliran air bertekanan tinggi dengan turbulensi cipratan deras. Berpotensi membuang hingga 15–18 Liter air per menit secara sia-sia.
+                        </p>
+                        <b>👉 Rekomendasi Sistem:</b> Putar kran ke debit lebih kecil (cukup aliran tenang). Sistem menyalakan alarm peringatan jika aliran deras dibiarkan menyala > 10 detik!
                     </div>
                     """, unsafe_allow_html=True)
                 elif pred_idx == 1:  # Kran Pelan (Hemat)
                     st.markdown("""
                     <div class="alert-card alert-pelan">
-                        <h3 style="margin-top:0; color:#166534;">✅ ALIRAN AIR KRAN PELAN (HEMAT & SESUAI SUNNAH)</h3>
-                        <p style="font-size:1.1rem; margin-bottom:8px;">Terdeteksi aliran air laminar wajar dan ramah lingkungan. Debit air ideal untuk berwudhu secara hemat.</p>
-                        <b>Tindakan Sistem:</b> Pertahankan debit air ini. Alarm hanya aktif jika kran mengalir > 20 detik tanpa henti (indikasi lupa mematikan kran).
+                        <h3 style="margin-top:0; color:#166534;">✅ ALIRAN AIR KRAN PELAN (HEMAT & RAMAH LINGKUNGAN)</h3>
+                        <p style="font-size:1.05rem; margin-bottom:8px;">
+                            Terdeteksi aliran air laminar wajar dan stabil (~4–6 Liter/menit). Sesuai dengan anjuran hemat air dan sunnah berwudhu.
+                        </p>
+                        <b>👉 Rekomendasi Sistem:</b> Pertahankan debit aliran ini. Peringatan hanya diaktifkan jika kran lupa ditutup dan terus mengalir lebih dari 20 detik.
                     </div>
                     """, unsafe_allow_html=True)
                 else:  # Bukan Air
                     st.markdown("""
                     <div class="alert-card alert-bukan">
-                        <h3 style="margin-top:0; color:#334155;">ℹ️ SUARA BUKAN ALIRAN AIR KRAN</h3>
-                        <p style="font-size:1.1rem; margin-bottom:8px;">Terdeteksi suara suasana lingkungan masjid (kipas angin / adzan / percakapan / kebisingan). Kran air sedang tertutup.</p>
-                        <b>Tindakan Sistem:</b> Sistem standby. Tidak ada air yang mengalir.
+                        <h3 style="margin-top:0; color:#334155;">ℹ️ SUARA LINGKUNGAN (BUKAN ALIRAN AIR KRAN)</h3>
+                        <p style="font-size:1.05rem; margin-bottom:8px;">
+                            Terdeteksi suara kebisingan latar masjid (kumandang adzan, kipas angin, langkah kaki, atau percakapan jamaah). Kran air saat ini tertutup.
+                        </p>
+                        <b>👉 Status Sistem:</b> Standby monitoring. Tidak ada pemborosan air terdeteksi.
                     </div>
                     """, unsafe_allow_html=True)
 
-                # Ringkasan Metrik Cepat
-                m1, m2, m3, m4 = st.columns(4)
+                # Ringkasan Metrik
+                m1, m2, m3, m4, m5 = st.columns(5)
                 with m1:
-                    st.metric("Hasil Prediksi", pred_name.split()[0] + " " + pred_name.split()[1])
+                    st.metric("Kondisi Terdeteksi", pred_name.split()[0] + " " + pred_name.split()[1])
                 with m2:
-                    st.metric("Tingkat Keyakinan", f"{prob_pct[pred_idx]:.2f}%")
+                    st.metric("Keyakinan Model", f"{prob_pct[pred_idx]:.2f}%")
                 with m3:
                     st.metric("Durasi Audio", f"{res['metrics']['duration']:.2f} detik")
                 with m4:
-                    st.metric("Centroid Spektral", f"{res['metrics']['centroid']:.0f} Hz")
+                    st.metric("Spectral Centroid", f"{res['metrics']['centroid']:.0f} Hz")
+                with m5:
+                    st.metric("RMS Energy", f"{res['metrics']['rms']:.4f}")
 
-                # Progress Bar Probabilitas
-                st.write("#### 📊 Distribusi Probabilitas Softmax Model:")
+                # Distribusi Probabilitas Tiga Kelas
+                st.markdown("#### 📊 Distribusi Probabilitas Softmax Model:")
                 col_p1, col_p2, col_p3 = st.columns(3)
                 with col_p1:
                     st.markdown(f"**⚪ Bukan Air / Noise:** `{prob_pct[0]:.2f}%`")
@@ -476,9 +517,9 @@ with tab_detect:
                     st.markdown(f"**🔴 Kran Keras (Boros):** `{prob_pct[2]:.2f}%`")
                     st.progress(float(res['avg_prob'][2]))
 
-                # Prediksi Per Detik (Timeline jika durasi audio > 2 detik)
+                # Deteksi Timeline Dinamis jika durasi > 2 detik
                 if len(res["segment_times"]) > 1:
-                    st.write("#### ⏱️ Prediksi Real-Time Sepanjang Waktu (Per Window 2 Detik):")
+                    st.markdown("#### ⏱️ Deteksi Dinamis Sepanjang Waktu (Per Interval Jendela 2 Detik):")
                     df_timeline = pd.DataFrame(
                         res["segment_probs"] * 100.0,
                         columns=["Bukan Air (%)", "Kran Pelan (%)", "Kran Keras (%)"],
@@ -486,85 +527,176 @@ with tab_detect:
                     )
                     st.line_chart(df_timeline)
 
+                # ==========================================
+                # FITUR BARU: SIMULATOR DAMPAK KONSERVASI AIR
+                # ==========================================
+                st.markdown("---")
+                st.markdown("### 💧 Simulator Pemborosan & Potensi Konservasi Air Masjid")
+                st.write("Gunakan slider di bawah untuk mensimulasikan dampak jika kondisi kran ini dibiarkan mengalir:")
+
+                dur_slider = st.slider(
+                    "Simulasi Durasi Kran Menyala (detik):",
+                    min_value=5, max_value=60, value=25, step=5
+                )
+
+                # Estimasi debit air (Liter / detik)
+                # Kran Keras: ~15 L/menit = 0.25 L/detik
+                # Kran Pelan: ~5 L/menit = 0.083 L/detik
+                # Bukan Air: 0
+                if pred_idx == 2:
+                    debit_rate = 0.25
+                    status_warning = "🚨 MELEBIHI AMBANG KRAN KERAS (10 Detik)! Alarm Pemborosan Aktif!" if dur_slider > 10 else "⚠️ Aliran deras bertekanan tinggi."
+                    warn_color = "🔴 Keras (Boros)"
+                elif pred_idx == 1:
+                    debit_rate = 0.083
+                    status_warning = "⚠️ MELEBIHI AMBANG KRAN PELAN (20 Detik)! Terindikasi lupa mematikan kran." if dur_slider > 20 else "✅ Aliran stabil & hemat."
+                    warn_color = "🟢 Pelan (Hemat)" if dur_slider <= 20 else "🟠 Peringatan Lupa"
+                else:
+                    debit_rate = 0.0
+                    status_warning = "⚪ Kran tertutup. Tidak ada air yang mengalir."
+                    warn_color = "⚪ Standby"
+
+                volume_terbuang = debit_rate * dur_slider
+                # Sunnah wudhu Rasulullah: ~1 Mud = 0.65 - 1.0 Liter air
+                sunnah_mud_equivalents = volume_terbuang / 0.75 if volume_terbuang > 0 else 0
+                # Potensi penghematan 200 jamaah per hari
+                hemat_harian_liter = (0.25 - 0.083) * 20 * 200  # jika 200 jamaah beralih dari keras ke pelan
+
+                c_sim1, c_sim2, c_sim3, c_sim4 = st.columns(4)
+                with c_sim1:
+                    st.metric("Air Mengalir", f"{volume_terbuang:.2f} Liter")
+                with c_sim2:
+                    st.metric("Status Peringatan", f"{warn_color}")
+                with c_sim3:
+                    st.metric("Setara Porsi Wudhu Sunnah", f"~{sunnah_mud_equivalents:.1f}x Wudhu")
+                with c_sim4:
+                    st.metric("Potensi Hemat (200 Jamaah)", f"{hemat_harian_liter:.0f} Liter/hari")
+
+                st.caption(f"**Status Operasional Saat Ini:** {status_warning}")
+
 # ==========================================
 # TAB 2: VISUALISASI AKUSTIK & SPEKTROGRAM
 # ==========================================
 with tab_visualize:
-    st.subheader("Visualisasi Sinyal Audio & Spektrogram Frekuensi")
+    st.markdown("### Visualisasi Sinyal Audio & Spektrogram Frekuensi")
     
     if "y_audio" in st.session_state and st.session_state.y_audio is not None:
         y_sig = st.session_state.y_audio
         sr_sig = st.session_state.sr_audio
 
-        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 6))
+        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(11, 6.5))
         
-        # 1. Waveform
+        # 1. Waveform Plot
         librosa.display.waveshow(y_sig, sr=sr_sig, ax=ax1, color="#0284c7")
-        ax1.set_title("Waveform (Amplitudo vs Waktu)", fontsize=12, fontweight='bold')
+        ax1.set_title("1. Waveform Domain Waktu (Amplitudo vs Waktu)", fontsize=11, fontweight='bold')
         ax1.set_xlabel("Waktu (detik)")
         ax1.set_ylabel("Amplitudo")
         ax1.grid(True, linestyle="--", alpha=0.5)
 
-        # 2. Mel-Spectrogram
+        # 2. Mel-Spectrogram Plot
         S_mel = librosa.feature.melspectrogram(y=y_sig, sr=sr_sig, n_mels=128, fmax=8000)
         S_dB = librosa.power_to_db(S_mel, ref=np.max)
         img = librosa.display.specshow(S_dB, x_axis='time', y_axis='mel', sr=sr_sig, fmax=8000, ax=ax2, cmap='magma')
-        ax2.set_title("Mel-Spectrogram (Pola Energi Frekuensi Suara)", fontsize=12, fontweight='bold')
+        ax2.set_title("2. Mel-Spectrogram (Pola Persebaran Energi Frekuensi 0–8000 Hz)", fontsize=11, fontweight='bold')
         ax2.set_xlabel("Waktu (detik)")
-        ax2.set_ylabel("Frekuensi (Hz)")
+        ax2.set_ylabel("Frekuensi Mel (Hz)")
         fig.colorbar(img, ax=ax2, format='%+2.0f dB')
 
         plt.tight_layout()
         st.pyplot(fig)
 
-        # Info Karakteristik Sinyal
-        st.markdown("### Karakteristik Akustik Terukur:")
+        # Metrik Akustik Terukur
+        st.markdown("#### Karakteristik Akustik Terukur:")
         met = st.session_state.last_result["metrics"]
         c_a, c_b, c_c = st.columns(3)
         with c_a:
-            st.info(f"**RMS Energy:** `{met['rms']:.5f}` (Tingkat kekuatan suara)")
+            st.info(f"**RMS Energy:** `{met['rms']:.5f}` (Tingkat intensitas suara)")
         with c_b:
-            st.info(f"**Spectral Centroid:** `{met['centroid']:.1f} Hz` (Kecerahan spektrum)")
+            st.info(f"**Spectral Centroid:** `{met['centroid']:.1f} Hz` (Frekuensi cipratan air)")
         with c_c:
-            st.info(f"**Zero Crossing Rate:** `{met['zcr']:.5f}` (Kerapatan perubahan tanda)")
+            st.info(f"**Zero Crossing Rate:** `{met['zcr']:.5f}` (Turbulensi getaran)")
     else:
-        st.info("Silakan jalankan deteksi audio terlebih dahulu pada tab pertama untuk memunculkan visualisasi gelombang dan spektrogram.")
+        st.info("💡 Silakan jalankan analisis audio pada tab pertama terlebih dahulu untuk memunculkan visualisasi gelombang dan spektrogram.")
 
 # ==========================================
-# TAB 3: INFO MODEL & ARSITEKTUR
+# TAB 3: INFO MODEL & ANALISIS AKURASI
 # ==========================================
 with tab_model_info:
-    st.subheader("Arsitektur & Metodologi Machine Learning")
-    
+    st.markdown("### Arsitektur Model & Analisis Peningkatan Akurasi (77% ➔ 97.5%)")
+
     st.markdown("""
-    Sistem ini dibangun untuk mendeteksi suara kran air wudhu menggunakan pendekatan **Acoustic Pattern Recognition**:
-    
-    #### 1. Ekstraksi Fitur Akustik (81 Fitur)
-    - **Temporal & Energi**: RMS Energy, Zero Crossing Rate (Mean & Std), Spectral Crest, Spectral Flux.
-    - **Spektral**: Spectral Centroid, Bandwidth, Spectral Rolloff (85% & 25%), Spectral Flatness.
-    - **Harmonis vs Perkusi**: HPSS (Harmonic-Percussive Source Separation) Harmonic Ratio.
-    - **Rasio Sub-band Energi**: Frekuensi Rendah (<250 Hz), Sedang (250–3000 Hz), dan Tinggi (>3000 Hz).
-    - **Representasi Timbre**: 20 Koefisien MFCC (Mean & Std), 20 Delta MFCC, dan Spectral Contrast.
-
-    #### 2. Model Klasifikasi (Soft-Voting Ensemble)
-    Model menggunakan penggabungan dua algoritma pohon keputusan terbaik:
-    - **ExtraTrees Classifier**: Mengurangi variansi dan sangat tahan terhadap noise lingkungan tempat wudhu.
-    - **Tuned Random Forest**: Mengoptimalkan keputusan batas (decision boundary) antara aliran air pelan dan deras.
-
-    #### 3. Evaluasi Performa
+    Dalam pengembangan sistem ini, akurasi model mengalami peningkatan signifikan melalui proses rekayasa data dan pemodelan ilmiah:
     """)
 
-    col_m1, col_m2 = st.columns(2)
-    with col_m1:
+    # Komparasi Sebelum vs Sesudah
+    col_k1, col_k2 = st.columns(2)
+    with col_k1:
+        st.error("""
+        #### 📉 Baseline Awal: Akurasi ~77.78%
+        - **Jumlah Dataset:** Hanya 9 rekaman sumber (81 segmen jendela).
+        - **Kelemahan:** Variasi data sangat minim; jika 2 rekaman salah klasifikasi, akurasi langsung anjlok sebesar 22.2%.
+        - **Tantangan:** Kesulitan membedakan suara cipratan kran pelan vs keras dan rentan false alarm terhadap suara adzan / kipas angin.
+        """)
+    with col_k2:
         st.success("""
-        **Data Uji Independen (Test Accuracy): 97.31%**
-        - Presisi Kran Hemat: > 96%
-        - Presisi Kran Boros: > 98%
-        - Presisi Bukan Air: > 97%
+        #### 📈 Model Akhir (Pipeline Baru): Akurasi 97.56% 🚀
+        - **Jumlah Dataset:** **2.092 rekaman sumber** (9.660 segmen jendela 2 detik).
+        - **Augmentasi Realistis:** Gaussian noise mikrofon, pitch & tempo shift, serta mixing adzan & kipas masjid pada SNR 12–18 dB.
+        - **Ekstraksi 81 Fitur Akustik:** Spektral, Temporal, HPSS Harmonic Ratio, Sub-band Ratios, MFCC + Delta, dan Spectral Contrast.
+        - **Model Ensemble:** Soft-Voting antara ExtraTrees (600 pohon) & Tuned Random Forest (400 pohon).
         """)
-    with col_m2:
-        st.info("""
-        **5-Fold Stratified Cross-Validation: 97.54% (±0.24%)**
-        - Performa stabil di berbagai variasi data suara.
-        - Tahan terhadap suara adzan, kipas masjid, dan kebisingan sekitar.
-        """)
+
+    st.markdown("#### 📊 Tabel Perbandingan Metodologi & Hasil:")
+    df_cmp = pd.DataFrame({
+        "Parameter / Metrik": [
+            "Jumlah Rekaman Sumber",
+            "Jumlah Segmen Audio (2 Detik)",
+            "Augmentasi & Ketahanan Noise",
+            "Metode Validasi Silang",
+            "Akurasi Level Rekaman (Record-level)",
+            "Akurasi Level Jendela (Window-level)",
+            "Macro F1-Score",
+            "Status Terhadap Target (85%–95%)"
+        ],
+        "Baseline Awal": [
+            "9 rekaman (3 per kelas)",
+            "81 segmen",
+            "Tidak ada",
+            "3-Fold Stratified Group CV",
+            "77.78%",
+            "~76.50%",
+            "77.78%",
+            "❌ Belum Tercapai (< 85%)"
+        ],
+        "Pipeline Terkini (Model Final)": [
+            "2.092 rekaman",
+            "9.660 segmen",
+            "SNR Mixing Adzan, Kipas, Noise Laptop",
+            "5-Fold Stratified Group CV",
+            "97.47% – 97.56%",
+            "95.23% – 95.55%",
+            "97.50%",
+            "✅ Tercapai & Melampaui Target (> 95%)"
+        ]
+    })
+    st.dataframe(df_cmp, use_container_width=True, hide_index=True)
+
+    st.divider()
+
+    # Tampilkan Grafik Evaluasi jika ada
+    plot_eval_path = os.path.join(BASE_DIR, "output", "evaluasi_model.png")
+    if os.path.exists(plot_eval_path):
+        st.markdown("#### 🖼️ Visualisasi Evaluasi Model (Confusion Matrix, Top Fitur, & Distribusi Kelas):")
+        st.image(plot_eval_path, use_container_width=True, caption="Evaluasi Model Ensemble ExtraTrees + Tuned Random Forest pada Data Uji")
+    
+    st.divider()
+
+    st.markdown("""
+    #### 🔬 Rincian 81 Fitur Akustik Komprehensif:
+    1. **Spektral Dasar (6 Fitur):** RMS Energy, Spectral Centroid, Spectral Bandwidth, Spectral Rolloff (85% & 25%), Spectral Flatness.
+    2. **Fitur Temporal & Fluktuasi (4 Fitur):** Zero Crossing Rate (ZCR) Mean, ZCR Standard Deviation, Spectral Crest Factor, Spectral Flux (Onset Strength).
+    3. **Pemisahan Sumber Harmonik (1 Fitur):** HPSS Harmonic Ratio — sangat efektif menyaring suara kumandang adzan dan vokal manusia agar tidak memicu alarm air.
+    4. **Proporsi Energi Sub-band (3 Fitur):** Low Frequency (<250 Hz, dominasi suara mesin/kipas), Mid Frequency (250–3000 Hz, suara inti aliran air), High Frequency (>3000 Hz, cipratan deras).
+    5. **Timbre Mel-Frequency (60 Fitur):** 20 Koefisien MFCC Mean, 20 MFCC Std, dan 20 MFCC Delta Mean.
+    6. **Spectral Contrast (7 Fitur):** 7 Sub-band Contrast Mean untuk membedakan struktur nada murni vs derau acak.
+    """)
